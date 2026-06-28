@@ -61,9 +61,9 @@ async def chat_completion(
         "Content-Type": "application/json",
         "Accept": "text/event-stream",
     }
-
     start = time.perf_counter()
     first_chunk_time: float | None = None
+    total_chunks = 0
     content_chunks = 0
     usage: dict[str, Any] | None = None
     metadata: dict[str, Any] = {}
@@ -93,6 +93,9 @@ async def chat_completion(
                         first_chunk_time = time.perf_counter()
 
                     choice = chunk.get("choices", [{}])[0]
+                    # Count all chunks for debugging
+                    total_chunks += 1
+
                     # OpenAI streaming format: choices[0].delta.content
                     # Some llama.cpp versions use choices[0].text
                     content = (
@@ -116,6 +119,9 @@ async def chat_completion(
 
     total_latency_ms = (time.perf_counter() - start) * 1000.0
     ttft_ms = (first_chunk_time - start) * 1000.0 if first_chunk_time else total_latency_ms
+
+    print(f"  [client] result: total_chunks={total_chunks}, content_chunks={content_chunks}, "
+          f"usage={usage}, error={error}")
 
     if usage:
         prompt_tokens = usage.get("prompt_tokens")

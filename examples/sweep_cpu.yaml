@@ -13,6 +13,6 @@ workload:
   kind: synthetic
   input_tokens: 256
   output_tokens: 128
-  concurrent_requests: 2
+  concurrent_requests: 1
   total_requests: 8
 objective: maximize throughput_tok_per_sec
