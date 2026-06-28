@@ -22,14 +22,14 @@ class SweepError(Exception):
 
 
 def _resolve_paths(cfg: Config, **kwargs: Any) -> ServerPaths:
-    """Find the server binary/venv — user must provide a path, no auto-build."""
+    """Find the server binary/venv. Checks config file first, CLI flags override."""
     if cfg.backend == "llama-cpp":
-        binary = kwargs.get("binary")
+        binary = kwargs.get("binary") or cfg.binary
         if not binary:
             raise SweepError(
                 "llama-server binary path required.\n"
-                "  Build llama.cpp yourself, then pass:\n"
-                "    benched run --binary /path/to/llama-server --config ..."
+                "  Set in config:    binary: /path/to/llama-server\n"
+                "  Or pass via CLI:  benched run --binary /path/to/llama-server"
             )
         p = Path(binary)
         if not p.exists():
@@ -37,12 +37,12 @@ def _resolve_paths(cfg: Config, **kwargs: Any) -> ServerPaths:
         return ServerPaths(str(p), [])
 
     if cfg.backend == "vllm":
-        venv = kwargs.get("venv")
+        venv = kwargs.get("venv") or cfg.venv
         if not venv:
             raise SweepError(
                 "vLLM virtual environment path required.\n"
-                "  Install vLLM yourself, then pass:\n"
-                "    benched run --venv /path/to/venv --config ..."
+                "  Set in config:    venv: /path/to/venv\n"
+                "  Or pass via CLI:  benched run --venv /path/to/venv"
             )
         venv_path = Path(venv)
         if sys.platform == "win32":
@@ -109,6 +109,13 @@ async def run_single(
             sample_json=json.dumps(sample.metadata or {}),
         )
 
+    # Debug: peek at first sample to verify metrics
+    if samples:
+        s = samples[0]
+        print(f"  [debug] first sample: completion_tokens={s.completion_tokens}, "
+              f"ttft_ms={s.ttft_ms:.1f}, total_latency_ms={s.total_latency_ms:.1f}, "
+              f"throughput={s.throughput_tok_per_sec:.2f}, error={s.error}")
+
     summary = aggregate_samples(
         [
             {
@@ -146,6 +153,8 @@ async def run_sweep(
         cfg.model = Path(model_override)
         if not cfg.model.exists():
             raise SweepError(f"override model path does not exist: {cfg.model}")
+    else:
+        cfg.check_model_exists()
 
     db = db or Database()
     combinations = matrix_combinations(cfg.server.matrix)

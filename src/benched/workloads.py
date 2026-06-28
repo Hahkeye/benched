@@ -12,7 +12,7 @@ from benched.client import Sample, chat_completion
 from benched.config import Config, CustomWorkload, SyntheticWorkload
 
 
-FRAGMENT = "hello "
+PROMPT_TEXT = "Write a detailed explanation of machine learning."
 
 
 def _approximate_tokens(text: str) -> int:
@@ -20,10 +20,11 @@ def _approximate_tokens(text: str) -> int:
 
 
 def _synthetic_messages(input_tokens: int) -> list[dict[str, Any]]:
-    text = ""
-    # Over-allocate slightly then trim.
+    text = PROMPT_TEXT
+    # If we need more tokens, repeat the text.
     while _approximate_tokens(text) < input_tokens:
-        text += FRAGMENT
+        text += " " + PROMPT_TEXT
+    # If we have too many, trim.
     while _approximate_tokens(text) > input_tokens:
         text = text.rsplit(" ", 1)[0]
     return [{"role": "user", "content": text}]

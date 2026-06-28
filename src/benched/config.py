@@ -35,8 +35,43 @@ LLAMA_PARAMS = {
     "-sm",
     "-t",
     "-tb",
+    "-ngl",
+    "-c",
+    "--metrics",
+    "--no-metrics",
+    "--slots",
+    "--no-slots",
+    "--chat-template",
+    "-sp",
+    "--system-prompt-file",
+    "--rope-scaling",
+    "--rope-freq-scale",
+    "--rope-freq-base",
+    "--yarn-ext-factor",
+    "--yarn-attn-factor",
+    "--yarn-beta-fast",
+    "--yarn-beta-slow",
+    "--cache-type-k",
+    "--cache-type-v",
+    "--host",
+    "--port",
+    "--path",
+    "-m",
+    "-a",
+    "--alias",
+    "--draft",
+    "-cd",
+    "--draft-max",
+    "--draft-min",
+    "--draft-max-p",
+    "-mvk",
+    "--monkeypatch",
+    "--grp-attn-n",
+    "--grp-attn-w",
+    "--n-cb",
+    "--version",
+    "--help",
 }
-
 VLLM_PARAMS = {
     "--tensor-parallel-size",
     "--pipeline-parallel-size",
@@ -55,6 +90,36 @@ VLLM_PARAMS = {
     "--optimization-level",
     "--performance-mode",
     "--stream-interval",
+    "--host",
+    "--port",
+    "--model",
+    "--served-model-name",
+    "-- tokenizer",
+    "--quantization",
+    "--seed",
+    "--swap-space",
+    "--download-dir",
+    "--uvicorn-log-level",
+    "--api-key",
+    "--ssl-certfile",
+    "--ssl-keyfile",
+    "--served-model-name",
+    "--response-role",
+    "--lora-modules",
+    "--prompt-logprobs",
+    "--chat-template",
+    "--disable-log-stats",
+    "--max-log-len",
+    "--load-format",
+    "--distributed-executor-port",
+    "--pipeline-parallel-balance-batch",
+    "--worker-use-ray",
+    "--disable-uvicorn-access-log",
+    "--num-platforms",
+    "--device",
+    "--extra-latency-rank",
+    "--disable-async-output-proc",
+    "--enable-async-output-proc",
 }
 
 METRICS = {"throughput_tok_per_sec", "ttft_ms", "tpot_ms", "total_latency_ms"}
@@ -94,15 +159,14 @@ class Objective(BaseModel):
     kind: Literal["maximize", "minimize"]
     metric: str
     weight: float = 1.0
-
-
 class Config(BaseModel):
     backend: str
     model: Path
     server: ServerConfig
     workload: SyntheticWorkload | CustomWorkload
     objective: str = "maximize throughput_tok_per_sec"
-
+    binary: Path | None = Field(default=None, description="Path to llama-server binary (use instead of CLI --binary)")
+    venv: Path | None = Field(default=None, description="Path to vLLM virtual environment (use instead of CLI --venv)")
     @field_validator("backend")
     @classmethod
     def _valid_backend(cls, value: str) -> str:
@@ -110,15 +174,9 @@ class Config(BaseModel):
             raise ValueError(f"unsupported backend {value!r}; choose one of {sorted(BACKENDS)}")
         return value
 
-    @model_validator(mode="after")
-    def _model_exists(self) -> "Config":
-        if not self.model.exists():
-            raise ConfigError(f"model path does not exist: {self.model}")
-        return self
 
     @model_validator(mode="after")
     def _validate_matrix_params(self) -> "Config":
-        allowed = LLAMA_PARAMS if self.backend == "llama-cpp" else VLLM_PARAMS
         for dim_index, dim in enumerate(self.server.matrix):
             for opt_index, option in enumerate(dim):
                 if not isinstance(option, list):
@@ -130,13 +188,13 @@ class Config(BaseModel):
                         raise ConfigError(
                             f"matrix[{dim_index}][{opt_index}] contains non-string {arg!r}"
                         )
-                    if arg.startswith("-"):
-                        name = arg.split("=", 1)[0]
-                        if name not in allowed:
-                            raise ConfigError(
-                                f"unsupported parameter {name!r} for backend {self.backend!r}"
-                            )
         return self
+
+    def check_model_exists(self) -> None:
+        """Validate the model file exists on disk. Called separately so
+        callers can apply overrides before checking."""
+        if not self.model.exists():
+            raise ConfigError(f"model path does not exist: {self.model}")
 
 
 def parse_objective(text: str) -> Objective:
@@ -236,6 +294,7 @@ def render_args_for_run(
     args.extend(combination)
     if cfg.backend == "llama-cpp":
         args.extend(["-m", str(cfg.model)])
+        args.append("--metrics")
     elif cfg.backend == "vllm":
         args.extend(["--model", str(cfg.model)])
     args.extend(["--host", "127.0.0.1", "--port", str(port)])

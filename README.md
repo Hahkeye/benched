@@ -169,6 +169,8 @@ See [`examples/`](examples/) for complete examples. The configuration file is YA
 |---|---|
 | `backend` | `llama-cpp` or `vllm` |
 | `model` | Path to GGUF (llama.cpp) or HF model (vLLM) |
+| `binary` | Path to llama-server binary (optional; can use CLI `--binary` instead) |
+| `venv` | Path to vLLM virtual environment (optional; can use CLI `--venv` instead) |
 | `server.base_args` | Arguments common to every run |
 | `server.matrix` | List of parameter dimensions to sweep (cartesian product) |
 | `workload` | `synthetic` or `custom` workload definition |

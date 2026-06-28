@@ -47,13 +47,14 @@ async def chat_completion(
 ) -> Sample:
     """Send a streaming chat-completion request and return timing metrics."""
     url = base_url.rstrip("/") + "/v1/chat/completions"
+    # Always include a model name — both llama.cpp and vLLM require it.
+    model_name = model or "default"
     payload: dict[str, Any] = {
         "messages": messages,
         "max_tokens": max_tokens,
         "stream": True,
+        "model": model_name,
     }
-    if model:
-        payload["model"] = model
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -90,20 +91,24 @@ async def chat_completion(
                         continue
                     if first_chunk_time is None:
                         first_chunk_time = time.perf_counter()
-                    delta = (
-                        chunk.get("choices", [{}])[0]
-                        .get("delta", {})
-                        .get("content")
+
+                    choice = chunk.get("choices", [{}])[0]
+                    # OpenAI streaming format: choices[0].delta.content
+                    # Some llama.cpp versions use choices[0].text
+                    content = (
+                        choice.get("delta", {}).get("content")
+                        or choice.get("text")
                     )
-                    if delta:
+                    if content:
                         content_chunks += 1
+
                     chunk_usage = chunk.get("usage")
                     if chunk_usage:
                         usage = chunk_usage
-                    # Final chunk may carry usage but no content.
-                    if chunk.get("choices") and not chunk["choices"][0].get("delta"):
-                        if chunk["choices"][0].get("finish_reason"):
-                            final_usage = chunk["choices"][0].get("usage")
+                    # Final chunk may carry usage but no delta content.
+                    if chunk.get("choices") and not choice.get("delta"):
+                        if choice.get("finish_reason"):
+                            final_usage = choice.get("usage")
                             if final_usage:
                                 usage = final_usage
     except Exception as exc:

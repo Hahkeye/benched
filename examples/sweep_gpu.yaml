@@ -1,5 +1,6 @@
 backend: vllm
-model: /home/hunter/.cache/huggingface/hub/models--deepreinforce-ai--Ornith-1.0-9B-GGUF/snapshots/3296bc7a404871a72ac3f1903f561459c09b5c17/ornith-1.0-9b-Q4_K_M.gguf
+venv: /path/to/vllm-venv
+model: /path/to/model
 server:
   matrix:
     - - ["--gpu-memory-utilization", "0.85"]

@@ -82,8 +82,11 @@ workload:
   concurrent_requests: 1
 """
     )
+    # load_config no longer validates model existence (caller may override).
+    cfg = config.load_config(cfg_path)
+    # Explicit call raises when model doesn't exist.
     with pytest.raises(config.ConfigError):
-        config.load_config(cfg_path)
+        cfg.check_model_exists()
 
 
 def test_unknown_backend(tmp_path: Path) -> None:
