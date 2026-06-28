@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}benched — runs{% endblock %}
+{% block content %}
+<h1>Runs</h1>
+<table>
+<thead>
+<tr>
+  <th>ID</th>
+  <th>Backend</th>
+  <th>Model</th>
+  <th>Status</th>
+  <th>Started</th>
+  <th>Samples</th>
+  <th>Throughput</th>
+  <th>TTFT</th>
+  <th>TPOT</th>
+</tr>
+</thead>
+<tbody>
+{% for run in runs %}
+<tr>
+  <td><a href="/runs/{{ run.id }}">{{ run.id }}</a></td>
+  <td>{{ run.backend }}</td>
+  <td>{{ run.model_path.split('/')[-1] if run.model_path else '' }}</td>
+  <td>{{ run.status }}</td>
+  <td>{{ run.started_at[:19] if run.started_at else '' }}</td>
+  <td>{{ run.summary.sample_count }}</td>
+  <td>{{ "%.2f"|format(run.summary.median_throughput or 0) }}</td>
+  <td>{{ "%.1f"|format(run.summary.median_ttft_ms or 0) }}</td>
+  <td>{{ "%.1f"|format(run.summary.median_tpot_ms or 0) }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endblock %}

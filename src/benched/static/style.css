@@ -1,0 +1,92 @@
+/* benched dashboard styles */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  margin: 0;
+  padding: 0;
+  color: #1a1a1a;
+  background: #f5f5f5;
+}
+
+nav {
+  background: #2c3e50;
+  padding: 1em;
+}
+
+nav a {
+  color: #ecf0f1;
+  text-decoration: none;
+  margin-right: 1.5em;
+}
+
+nav a:hover {
+  text-decoration: underline;
+}
+
+main {
+  max-width: 1200px;
+  margin: 2em auto;
+  padding: 0 1em;
+}
+
+h1, h2 {
+  color: #2c3e50;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  margin: 1em 0;
+}
+
+th, td {
+  padding: 0.5em 0.75em;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+th {
+  background: #34495e;
+  color: #ecf0f1;
+  font-weight: 600;
+}
+
+tr:hover {
+  background: #f0f4f8;
+}
+
+.run-meta {
+  background: #fff;
+  padding: 1em;
+  margin: 1em 0;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5em;
+  background: #fff;
+  padding: 1em;
+  margin: 1em 0;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.summary div {
+  font-size: 1.1em;
+}
+
+.error {
+  color: #e74c3c;
+  background: #fdeaea;
+  padding: 1em;
+  border-radius: 4px;
+  margin: 1em 0;
+}
+
+a {
+  color: #2980b9;
+}

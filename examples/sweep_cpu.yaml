@@ -1,0 +1,17 @@
+backend: llama-cpp
+model: /path/to/TinyLlama-1.1B-Chat-v1.0.Q4_K_M.gguf
+server:
+  matrix:
+    - - ["-t", "4"]
+      - ["-t", "8"]
+    - - ["-ngl", "0"]
+      - ["-ngl", "10"]
+    - - ["-cb"]
+      - ["--no-cont-batching"]
+workload:
+  kind: synthetic
+  input_tokens: 256
+  output_tokens: 128
+  concurrent_requests: 2
+  total_requests: 8
+objective: maximize throughput_tok_per_sec

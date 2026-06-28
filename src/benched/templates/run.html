@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Run {{ run.id }}{% endblock %}
+{% block content %}
+<h1>Run {{ run.id }}</h1>
+
+<div class="run-meta">
+  <strong>Backend:</strong> {{ run.backend }} &bull;
+  <strong>Model:</strong> {{ run.model_path }} &bull;
+  <strong>Status:</strong> {{ run.status }} &bull;
+  <strong>Args:</strong> {{ run.args | join(' ') }}
+</div>
+
+{% if run.error_message %}
+<div class="error">{{ run.error_message }}</div>
+{% endif %}
+
+<div class="summary">
+  <div>Samples: {{ run.summary.sample_count }}</div>
+  <div>Errors: {{ run.summary.error_count }}</div>
+  <div>Median Throughput: {{ "%.2f"|format(run.summary.median_throughput or 0) }} tok/s</div>
+  <div>Median TTFT: {{ "%.1f"|format(run.summary.median_ttft_ms or 0) }} ms</div>
+  <div>Median TPOT: {{ "%.1f"|format(run.summary.median_tpot_ms or 0) }} ms</div>
+  <div>Median Latency: {{ "%.1f"|format(run.summary.median_total_latency_ms or 0) }} ms</div>
+</div>
+
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+
+{% if charts.ttft %}
+<h2>TTFT Distribution</h2>
+<div id="chart-ttft"></div>
+<script>Plotly.newPlot("chart-ttft", {{ charts.ttft | safe }})</script>
+{% endif %}
+
+{% if charts.tpot %}
+<h2>TPOT Distribution</h2>
+<div id="chart-tpot"></div>
+<script>Plotly.newPlot("chart-tpot", {{ charts.tpot | safe }})</script>
+{% endif %}
+
+{% if charts.throughput %}
+<h2>Throughput Distribution</h2>
+<div id="chart-throughput"></div>
+<script>Plotly.newPlot("chart-throughput", {{ charts.throughput | safe }})</script>
+{% endif %}
+
+{% if not charts.ttft and not charts.tpot and not charts.throughput %}
+<p>No metric data available for this run.</p>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}benched — recommendations{% endblock %}
+{% block content %}
+<h1>Recommendations</h1>
+
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+
+{% if scatter %}
+<h2>Throughput vs. Latency</h2>
+<div id="scatter"></div>
+<script>Plotly.newPlot("scatter", {{ scatter | safe }})</script>
+{% endif %}
+
+<h2>Top Configurations</h2>
+<table>
+<thead>
+<tr>
+  <th>Rank</th>
+  <th>Backend</th>
+  <th>Throughput</th>
+  <th>TTFT</th>
+  <th>TPOT</th>
+  <th>Latency</th>
+  <th>Errors</th>
+  <th>Args</th>
+</tr>
+</thead>
+<tbody>
+{% for entry in ranked %}
+<tr>
+  <td>{{ loop.index }}</td>
+  <td>{{ entry.run.backend }}</td>
+  <td>{{ "%.2f"|format(entry.summary.median_throughput_tok_per_sec or 0) }}</td>
+  <td>{{ "%.1f"|format(entry.summary.median_ttft_ms or 0) }}</td>
+  <td>{{ "%.1f"|format(entry.summary.median_tpot_ms or 0) }}</td>
+  <td>{{ "%.1f"|format(entry.summary.median_total_latency_ms or 0) }}</td>
+  <td>{{ entry.summary.error_count }}/{{ entry.summary.sample_count }}</td>
+  <td>{{ entry.run.args | join(' ') }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endblock %}

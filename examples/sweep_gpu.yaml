@@ -1,0 +1,17 @@
+backend: vllm
+model: /path/to/model
+server:
+  matrix:
+    - - ["--gpu-memory-utilization", "0.85"]
+      - ["--gpu-memory-utilization", "0.95"]
+    - - ["--max-num-seqs", "64"]
+      - ["--max-num-seqs", "256"]
+    - - ["--enforce-eager"]
+      - []
+workload:
+  kind: synthetic
+  input_tokens: 512
+  output_tokens: 256
+  concurrent_requests: 4
+  total_requests: 16
+objective: maximize throughput_tok_per_sec
