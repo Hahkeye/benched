@@ -47,6 +47,30 @@ async def _git_commit_timestamp(repo: Path) -> float:
     return float(out) if out else 0.0
 
 
+async def _run_cmd_live(
+    name: str,
+    args: list[str],
+    cwd: Path | None = None,
+) -> asyncio.subprocess.Process:
+    """Run a command and stream its stdout/stderr to the terminal in real time."""
+    proc = await asyncio.create_subprocess_exec(
+        name,
+        *args,
+        cwd=cwd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    if proc.stdout:
+        while True:
+            line = await proc.stdout.readline()
+            if not line:
+                break
+            print(f"  {line.decode(errors='replace').rstrip()}")
+    await proc.wait()
+    if proc.returncode != 0:
+        raise RuntimeError(f"command failed: {name} {' '.join(args)} (exit {proc.returncode})")
+    return proc
+
 def _venv_python(venv: Path) -> Path:
     if sys.platform == "win32":
         return venv / "Scripts" / "python.exe"
@@ -103,7 +127,7 @@ class VllmBuilder(Builder):
 
         if need_install:
             print("[vllm] installing package into venv (this may take a while)")
-            await _run_cmd(str(py), ["-m", "pip", "install", "--upgrade", "pip"], cwd=repo)
-            await _run_cmd(str(py), ["-m", "pip", "install", "-e", "."], cwd=repo)
+            await _run_cmd_live(str(py), ["-m", "pip", "install", "--upgrade", "pip"], cwd=repo)
+            await _run_cmd_live(str(py), ["-m", "pip", "install", "-e", "."], cwd=repo)
 
         return ServerPaths(str(py), ["-m", "vllm.entrypoints.openai.api_server"])

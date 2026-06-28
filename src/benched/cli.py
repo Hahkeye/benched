@@ -145,6 +145,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                             help="GPU backend for llama.cpp builds: auto (detect), cuda, vulkan, rocm, off")
     run_parser.add_argument("--binary", help="Existing llama-server binary")
     run_parser.add_argument("--venv", help="Existing vLLM virtualenv")
+    run_parser.add_argument("--continue-from", type=int, default=None, dest="continue_from",
+                            help="Resume from a failed run, skipping already successful configurations")
     run_parser.set_defaults(func=_run)
 
     # list

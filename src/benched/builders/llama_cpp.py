@@ -103,6 +103,30 @@ async def _run_cmd(
         raise RuntimeError(f"command failed: {name} {' '.join(args)}\n{err}")
     return proc
 
+async def _run_cmd_live(
+    name: str,
+    args: list[str],
+    cwd: Path | None = None,
+) -> asyncio.subprocess.Process:
+    """Run a command and stream its stdout/stderr to the terminal in real time."""
+    proc = await asyncio.create_subprocess_exec(
+        name,
+        *args,
+        cwd=cwd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    if proc.stdout:
+        while True:
+            line = await proc.stdout.readline()
+            if not line:
+                break
+            print(f"  {line.decode(errors='replace').rstrip()}")
+    await proc.wait()
+    if proc.returncode != 0:
+        raise RuntimeError(f"command failed: {name} {' '.join(args)} (exit {proc.returncode})")
+    return proc
+
 
 class LlamaCppBuilder(Builder):
     def __init__(
@@ -181,7 +205,7 @@ class LlamaCppBuilder(Builder):
             "-DLLAMA_BUILD_SERVER=ON",
             *_cmake_gpu_flags(gpu_backend),
         ]
-        await _run_cmd("cmake", cmake_args, cwd=repo)
+        await _run_cmd_live("cmake", cmake_args, cwd=repo)
 
         # Build ---------------------------------------------------------------
         print("[llama.cpp] building llama-server")
@@ -194,7 +218,7 @@ class LlamaCppBuilder(Builder):
             "llama-server",
             "-j",
         ]
-        await _run_cmd("cmake", build_args, cwd=repo)
+        await _run_cmd_live("cmake", build_args, cwd=repo)
 
         if not server_bin.exists():
             raise FileNotFoundError(f"llama-server binary not found after build: {server_bin}")
