@@ -93,11 +93,13 @@ async def chat_completion(
                         first_chunk_time = time.perf_counter()
 
                     choice = chunk.get("choices", [{}])[0]
-                    # Count all chunks for debugging
                     total_chunks += 1
 
-                    # OpenAI streaming format: choices[0].delta.content
-                    # Some llama.cpp versions use choices[0].text
+                    # DEBUG: print first two chunks with actual keys/values
+                    if total_chunks <= 3:
+                        import pprint
+                        print(f"  [client] chunk #{total_chunks}: {json.dumps(chunk)[:200]}")
+
                     content = (
                         choice.get("delta", {}).get("content")
                         or choice.get("text")
@@ -108,7 +110,6 @@ async def chat_completion(
                     chunk_usage = chunk.get("usage")
                     if chunk_usage:
                         usage = chunk_usage
-                    # Final chunk may carry usage but no delta content.
                     if chunk.get("choices") and not choice.get("delta"):
                         if choice.get("finish_reason"):
                             final_usage = choice.get("usage")
