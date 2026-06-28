@@ -5,16 +5,12 @@ Auto-tuning harness for [llama.cpp](https://github.com/ggml-org/llama.cpp) and [
 ## Install
 
 ```bash
-pip install "benched[dev]"
+git clone git@github.com:Hahkeye/benched.git
+cd benched
+pip install -e .          # core dependencies only
+pip install -e ".[dev]"   # with dev dependencies (tests)
+pip install -e ".[dashboard]"  # with web dashboard
 ```
-
-**Dashboard** (optional): requires extra deps.
-
-```bash
-pip install "benched[dashboard]"
-```
-
-## Quick start
 
 ### 1. Build a server binary
 

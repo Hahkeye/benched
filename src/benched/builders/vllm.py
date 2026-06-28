@@ -71,7 +71,7 @@ class VllmBuilder(Builder):
 
         base = self.cache_dir() / "vllm"
         repo = base / self.ref
-        venv = base / "venv"
+        venv = base / self.ref / "venv"
         repo.mkdir(parents=True, exist_ok=True)
 
         if not (repo / ".git").exists():
