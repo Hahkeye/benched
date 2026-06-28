@@ -76,6 +76,12 @@ def _venv_python(venv: Path) -> Path:
         return venv / "Scripts" / "python.exe"
     return venv / "bin" / "python"
 
+def _venv_pip(venv: Path) -> Path:
+    """Return the path to pip inside a virtual environment."""
+    if sys.platform == "win32":
+        return venv / "Scripts" / "pip.exe"
+    return venv / "bin" / "pip"
+
 
 class VllmBuilder(Builder):
     def __init__(
@@ -102,18 +108,26 @@ class VllmBuilder(Builder):
             print(f"[vllm] cloning {REPO_URL} @ {self.ref}")
             await _run_cmd("git", ["clone", "--depth", "1", "--branch", self.ref, REPO_URL, str(repo)])
         else:
-            # main is expected to be a branch; pull latest.
             print(f"[vllm] pulling branch {self.ref}")
             await _run_cmd("git", ["-C", str(repo), "pull", "origin", self.ref])
 
         py = _venv_python(venv)
         if not py.exists():
             print("[vllm] creating virtual environment")
-            if sys.version_info >= (3, 12):
-                await _run_cmd(sys.executable, ["-m", "venv", str(venv)])
-            else:
-                await _run_cmd(sys.executable, ["-m", "venv", str(venv)])
+            await _run_cmd(sys.executable, ["-m", "venv", str(venv)])
 
+        # Ensure pip is available in the venv ---------------------------------
+        if not _venv_pip(venv).exists():
+            print("[vllm] pip not found in venv; running ensurepip")
+            try:
+                await _run_cmd(str(py), ["-m", "ensurepip", "--upgrade"], cwd=repo, check=True)
+            except RuntimeError:
+                print("[vllm] ensurepip failed; falling back to system pip bootstrap")
+                # Attempt to symlink/copy pip from system into the venv
+                await _run_cmd(
+                    sys.executable, ["-m", "pip", "install", "--target", str(py.parent.parent / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"), "pip"],
+                    cwd=repo,
+                )
         # Decide whether re-install is needed by comparing checkout time to dist-info.
         need_install = True
         commit_ts = await _git_commit_timestamp(repo)
