@@ -4,12 +4,28 @@ Auto-tuning harness for [llama.cpp](https://github.com/ggml-org/llama.cpp) and [
 
 ## Install
 
+## Prerequisites
+
+- Python 3.10+
+- [uv](https://docs.astral.sh/uv/) (recommended) or `pip`
+- git
+
+## Install
+
 ```bash
 git clone git@github.com:Hahkeye/benched.git
 cd benched
-pip install -e .          # core dependencies only
-pip install -e ".[dev]"   # with dev dependencies (tests)
-pip install -e ".[dashboard]"  # with web dashboard
+uv pip install -e .          # core dependencies only
+uv pip install -e ".[dev]"   # with dev dependencies (tests)
+uv pip install -e ".[dashboard]"  # with web dashboard
+```
+
+If you don't have `uv`, `pip` works too:
+
+```bash
+pip install -e .
+pip install -e ".[dev]"
+pip install -e ".[dashboard]"
 ```
 
 ### 1. Build a server binary
@@ -189,7 +205,7 @@ Use an empty list `[]` to represent "no args" for a toggle (e.g. `--enforce-eage
 ## Tests
 
 ```bash
-pip install "benched[dev]"
+uv pip install -e ".[dev]"
 pytest tests/
 ```
 
