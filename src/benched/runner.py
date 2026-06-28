@@ -32,11 +32,13 @@ def _builder_for_config(cfg: Config, **kwargs: Any) -> Builder:
         return VllmBuilder(
             ref=kwargs.get("ref", "main"),
             venv=kwargs.get("venv"),
+            wheel=kwargs.get("wheel", False),
         )
     raise SweepError(f"unknown backend: {cfg.backend}")
 
 
 def _format_args(args: list[str]) -> str:
+    """Format a list of CLI args into a readable key=value string."""
     parts = []
     i = 0
     while i < len(args):

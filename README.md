@@ -42,7 +42,10 @@ benched build llama --binary /path/to/llama-server
 ```
 
 ```bash
-# vLLM — pip install into a venv
+# vLLM — install pre-built wheel (fast, recommended)
+benched build vllm --wheel
+
+# vLLM — build from source (clone + pip install -e .)
 benched build vllm --ref main
 
 # Skip source build and use an existing venv

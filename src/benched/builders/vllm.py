@@ -88,9 +88,11 @@ class VllmBuilder(Builder):
         self,
         ref: str = "main",
         venv: str | Path | None = None,
+        wheel: bool = False,
     ) -> None:
         self.ref = ref
         self.venv = Path(venv) if venv else None
+        self.wheel = wheel
 
     async def ensure(self) -> ServerPaths:
         if self.venv:
@@ -99,6 +101,29 @@ class VllmBuilder(Builder):
                 raise FileNotFoundError(f"provided venv python not found: {py}")
             return ServerPaths(str(py), ["-m", "vllm.entrypoints.openai.api_server"])
 
+        base = self.cache_dir() / "vllm"
+        venv = base / self.ref / "venv"
+
+        # Wheel install: just pip/uv install vllm, no clone
+        if self.wheel:
+            print(f"[vllm] installing vllm wheel (ref={self.ref})")
+            if not _venv_python(venv).exists():
+                if shutil.which("uv"):
+                    print("[vllm] creating virtual environment with uv")
+                    await _run_cmd("uv", ["venv", str(venv)])
+                else:
+                    print("[vllm] creating virtual environment")
+                    await _run_cmd(sys.executable, ["-m", "venv", str(venv)])
+            py = _venv_python(venv)
+            if shutil.which("uv"):
+                await _run_cmd_live("uv", ["pip", "install", "--python", str(py), "vllm", "--torch-backend", "auto"], cwd=self.cache_dir())
+            else:
+                if not _venv_pip(venv).exists():
+                    await _run_cmd(str(py), ["-m", "ensurepip", "--upgrade"], cwd=self.cache_dir(), check=False)
+                await _run_cmd_live(str(py), ["-m", "pip", "install", "vllm"], cwd=self.cache_dir())
+            return ServerPaths(str(py), ["-m", "vllm.entrypoints.openai.api_server"])
+
+        # Source build (clone + pip install -e .) ----------------------------
         base = self.cache_dir() / "vllm"
         repo = base / self.ref
         venv = base / self.ref / "venv"

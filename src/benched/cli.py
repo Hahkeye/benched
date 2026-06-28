@@ -23,12 +23,16 @@ def _build_llama(args: argparse.Namespace) -> int:
         gpu=args.gpu,
         binary=args.binary,
     )
+    paths = asyncio.run(builder.ensure())
+    print(paths.executable)
+    return 0
 
 
 def _build_vllm(args: argparse.Namespace) -> int:
     builder = VllmBuilder(
         ref=args.ref,
         venv=args.venv,
+        wheel=args.wheel,
     )
     paths = asyncio.run(builder.ensure())
     print(paths.executable)
@@ -47,6 +51,7 @@ def _run(args: argparse.Namespace) -> int:
                 gpu=args.gpu,
                 binary=args.binary,
                 venv=args.venv,
+                wheel=args.wheel,
             )
         )
     except ConfigError as exc:
@@ -66,7 +71,8 @@ def _list(args: argparse.Namespace) -> int:
             limit=args.limit,
         )
     )
-    print(f"{'id':>6} {'backend':<12} {'model':<30} {'status':<10} {'throughput':>12} {'errors':>10}")
+    header = f"{'id':>6} {'backend':<12} {'model':<30} {'status':<10} {'throughput':>12} {'errors':>10}"
+    print(header)
     for run in runs:
         summary = run.get("summary", {})
         print(
@@ -120,19 +126,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # build llama
-    build_llama = subparsers.add_parser("build", help="Build a backend")
-    build_sub = build_llama.add_subparsers(dest="backend", required=True)
+    build_parser = subparsers.add_parser("build", help="Build a backend")
+    build_sub = build_parser.add_subparsers(dest="backend", required=True)
 
     llama_parser = build_sub.add_parser("llama", help="Build llama.cpp server")
     llama_parser.add_argument("--ref", default="main")
-    llama_parser.add_argument("--gpu", choices=["auto", "cuda", "vulkan", "rocm", "off"], default="auto",
-                              help="GPU backend: auto (detect), cuda, vulkan, rocm, or off (CPU-only)")
+    llama_parser.add_argument(
+        "--gpu", choices=["auto", "cuda", "vulkan", "rocm", "off"], default="auto",
+        help="GPU backend: auto (detect), cuda, vulkan, rocm, or off (CPU-only)",
+    )
     llama_parser.add_argument("--binary", help="Path to existing llama-server binary")
     llama_parser.set_defaults(func=_build_llama)
 
     vllm_parser = build_sub.add_parser("vllm", help="Build vLLM")
     vllm_parser.add_argument("--ref", default="main")
     vllm_parser.add_argument("--venv", help="Path to existing venv containing vLLM")
+    vllm_parser.add_argument(
+        "--wheel", action="store_true",
+        help="Install pre-built vllm wheel instead of building from source",
+    )
     vllm_parser.set_defaults(func=_build_vllm)
 
     # run
@@ -141,12 +153,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_parser.add_argument("--model", help="Override model path")
     run_parser.add_argument("--dry-run", action="store_true", help="Print configurations without running")
     run_parser.add_argument("--ref", default="main", help="Git ref for source builds")
-    run_parser.add_argument("--gpu", choices=["auto", "cuda", "vulkan", "rocm", "off"], default="auto",
-                            help="GPU backend for llama.cpp builds: auto (detect), cuda, vulkan, rocm, off")
+    run_parser.add_argument(
+        "--gpu", choices=["auto", "cuda", "vulkan", "rocm", "off"], default="auto",
+        help="GPU backend for llama.cpp builds: auto (detect), cuda, vulkan, rocm, off",
+    )
     run_parser.add_argument("--binary", help="Existing llama-server binary")
     run_parser.add_argument("--venv", help="Existing vLLM virtualenv")
-    run_parser.add_argument("--continue-from", type=int, default=None, dest="continue_from",
-                            help="Resume from a failed run, skipping already successful configurations")
+    run_parser.add_argument(
+        "--wheel", action="store_true",
+        help="Install pre-built vllm wheel instead of building from source",
+    )
+    run_parser.add_argument(
+        "--continue-from", type=int, default=None, dest="continue_from",
+        help="Resume from a failed run, skipping already successful configurations",
+    )
     run_parser.set_defaults(func=_run)
 
     # list
