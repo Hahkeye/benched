@@ -9,34 +9,11 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from benched.builders import LlamaCppBuilder, VllmBuilder
 from benched.config import ConfigError, load_config
 from benched.dashboard import run_dashboard
 from benched.db import Database
 from benched.objectives import recommend
 from benched.runner import list_results, run_sweep, show_run
-
-
-def _build_llama(args: argparse.Namespace) -> int:
-    builder = LlamaCppBuilder(
-        ref=args.ref,
-        gpu=args.gpu,
-        binary=args.binary,
-    )
-    paths = asyncio.run(builder.ensure())
-    print(paths.executable)
-    return 0
-
-
-def _build_vllm(args: argparse.Namespace) -> int:
-    builder = VllmBuilder(
-        ref=args.ref,
-        venv=args.venv,
-        wheel=args.wheel,
-    )
-    paths = asyncio.run(builder.ensure())
-    print(paths.executable)
-    return 0
 
 
 def _run(args: argparse.Namespace) -> int:
@@ -47,11 +24,8 @@ def _run(args: argparse.Namespace) -> int:
                 dry_run=args.dry_run,
                 model_override=args.model,
                 continue_from=args.continue_from,
-                ref=args.ref,
-                gpu=args.gpu,
                 binary=args.binary,
                 venv=args.venv,
-                wheel=args.wheel,
             )
         )
     except ConfigError as exc:
@@ -125,44 +99,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="benched", description="Auto-tune llama.cpp and vLLM parameters")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # build llama
-    build_parser = subparsers.add_parser("build", help="Build a backend")
-    build_sub = build_parser.add_subparsers(dest="backend", required=True)
-
-    llama_parser = build_sub.add_parser("llama", help="Build llama.cpp server")
-    llama_parser.add_argument("--ref", default="master")
-    llama_parser.add_argument(
-        "--gpu", choices=["auto", "cuda", "vulkan", "rocm", "off"], default="auto",
-        help="GPU backend: auto (detect), cuda, vulkan, rocm, or off (CPU-only)",
-    )
-    llama_parser.add_argument("--binary", help="Path to existing llama-server binary")
-    llama_parser.set_defaults(func=_build_llama)
-
-    vllm_parser = build_sub.add_parser("vllm", help="Build vLLM")
-    vllm_parser.add_argument("--ref", default="main")
-    vllm_parser.add_argument("--venv", help="Path to existing venv containing vLLM")
-    vllm_parser.add_argument(
-        "--wheel", action="store_true",
-        help="Install pre-built vllm wheel instead of building from source",
-    )
-    vllm_parser.set_defaults(func=_build_vllm)
-
     # run
     run_parser = subparsers.add_parser("run", help="Run a sweep")
     run_parser.add_argument("--config", required=True, help="Path to sweep config YAML")
     run_parser.add_argument("--model", help="Override model path")
     run_parser.add_argument("--dry-run", action="store_true", help="Print configurations without running")
-    run_parser.add_argument("--ref", help="Git ref for source builds (default: master for llama.cpp, main for vLLM)")
-    run_parser.add_argument(
-        "--gpu", choices=["auto", "cuda", "vulkan", "rocm", "off"], default="auto",
-        help="GPU backend for llama.cpp builds: auto (detect), cuda, vulkan, rocm, off",
-    )
-    run_parser.add_argument("--binary", help="Existing llama-server binary")
-    run_parser.add_argument("--venv", help="Existing vLLM virtualenv")
-    run_parser.add_argument(
-        "--wheel", action="store_true",
-        help="Install pre-built vllm wheel instead of building from source",
-    )
+    run_parser.add_argument("--binary", help="Path to existing llama-server binary")
+    run_parser.add_argument("--venv", help="Path to existing vLLM virtualenv")
     run_parser.add_argument(
         "--continue-from", type=int, default=None, dest="continue_from",
         help="Resume from a failed run, skipping already successful configurations",

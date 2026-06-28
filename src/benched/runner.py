@@ -21,46 +21,37 @@ class SweepError(Exception):
     """Raised when a sweep cannot proceed."""
 
 
-_LLAMA_BIN = "llama-server"
-_VLLM_PY = "vllm.entrypoints.openai.api_server"
-
-
 def _resolve_paths(cfg: Config, **kwargs: Any) -> ServerPaths:
-    """Find (do not build) the server binary for the configured backend."""
-    ref = kwargs.get("ref") or ("master" if cfg.backend == "llama-cpp" else "main")
-    cache = Path.home() / ".cache" / "benched"
-
+    """Find the server binary/venv — user must provide a path, no auto-build."""
     if cfg.backend == "llama-cpp":
         binary = kwargs.get("binary")
-        if binary:
-            p = Path(binary)
-        else:
-            p = cache / "llama.cpp" / ref / "build" / "bin" / _LLAMA_BIN
-        if not p.exists():
+        if not binary:
             raise SweepError(
-                f"llama-server not found at {p}\n"
-                f"  Run: benched build llama --ref {ref} --gpu auto|off|cuda|vulkan|rocm\n"
-                f"  Or:  benched run --binary /path/to/llama-server"
+                "llama-server binary path required.\n"
+                "  Build llama.cpp yourself, then pass:\n"
+                "    benched run --binary /path/to/llama-server --config ..."
             )
+        p = Path(binary)
+        if not p.exists():
+            raise SweepError(f"llama-server not found at {p}")
         return ServerPaths(str(p), [])
 
     if cfg.backend == "vllm":
         venv = kwargs.get("venv")
-        if venv:
-            venv_path = Path(venv)
-        else:
-            venv_path = cache / "vllm" / ref / "venv"
+        if not venv:
+            raise SweepError(
+                "vLLM virtual environment path required.\n"
+                "  Install vLLM yourself, then pass:\n"
+                "    benched run --venv /path/to/venv --config ..."
+            )
+        venv_path = Path(venv)
         if sys.platform == "win32":
             py = venv_path / "Scripts" / "python.exe"
         else:
             py = venv_path / "bin" / "python"
         if not py.exists():
-            raise SweepError(
-                f"vLLM venv not found at {py}\n"
-                f"  Run: benched build vllm --ref {ref} --wheel\n"
-                f"  Or:  benched run --venv /path/to/venv"
-            )
-        return ServerPaths(str(py), ["-m", _VLLM_PY])
+            raise SweepError(f"vLLM venv python not found at {py}")
+        return ServerPaths(str(py), ["-m", "vllm.entrypoints.openai.api_server"])
 
     raise SweepError(f"unknown backend: {cfg.backend}")
 

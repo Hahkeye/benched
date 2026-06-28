@@ -2,14 +2,13 @@
 
 Auto-tuning harness for [llama.cpp](https://github.com/ggml-org/llama.cpp) and [vLLM](https://github.com/vllm-project/vllm) inference servers. Runs OpenAI-compatible chat-completion benchmarks across a matrix of performance parameters, persists results in SQLite, and recommends optimal configurations.
 
-## Install
-
 ## Prerequisites
+
 - Python 3.10+
 - [uv](https://docs.astral.sh/uv/) (recommended) or `pip`
 - git
-- [cmake](https://cmake.org/) (required for building llama.cpp from source)
-- C++ compiler (`g++`, `clang++`, or MSVC) — needed for source builds
+- A pre-built [llama.cpp](https://github.com/ggml-org/llama.cpp) server binary (`llama-server`) and/or a vLLM virtual environment — build these yourself using each project's own documentation
+
 ## Install
 
 ```bash
@@ -28,29 +27,32 @@ pip install -e ".[dev]"
 pip install -e ".[dashboard]"
 ```
 
-### 1. Build a server binary
+## Quick start
+
+### 1. Build your server (yourself)
+
+benched does **not** build llama.cpp or vLLM for you. You build them yourself.
+
+**llama.cpp** — follow the [official build guide](https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md):
 
 ```bash
-# llama.cpp — CPU
-benched build llama
-
-# llama.cpp — with GPU (Vulkan, CUDA, or ROCm)
-benched build llama --gpu cuda
-
-# Skip source build and use an existing binary
-benched build llama --binary /path/to/llama-server
+git clone https://github.com/ggml-org/llama.cpp
+cd llama.cpp
+cmake -B build -DGGML_CUDA=ON   # or -DGGML_VULKAN=ON, omit for CPU
+cmake --build build --config Release
 ```
+
+The server binary will be at `llama.cpp/build/bin/llama-server`. Pass it to benched with `--binary`.
+
+**vLLM** — install into a virtual environment:
 
 ```bash
-# vLLM — install pre-built wheel (fast, recommended)
-benched build vllm --wheel
-
-# vLLM — build from source (clone + pip install -e .)
-benched build vllm --ref main
-
-# Skip source build and use an existing venv
-benched build vllm --venv /path/to/venv
+uv venv
+uv pip install vllm
+# or: pip install vllm
 ```
+
+Pass the venv path to benched with `--venv`.
 
 ### 2. Configure a sweep
 
@@ -101,7 +103,7 @@ objective: maximize throughput_tok_per_sec
 ### 3. Dry-run first
 
 ```bash
-benched run --config examples/sweep_cpu.yaml --dry-run
+benched run --config examples/sweep_cpu.yaml --binary /path/to/llama-server --dry-run
 ```
 
 Prints every cartesian combination without starting a server.
@@ -109,7 +111,11 @@ Prints every cartesian combination without starting a server.
 ### 4. Run the sweep
 
 ```bash
-benched run --config examples/sweep_cpu.yaml --model /path/to/your/model.gguf
+# llama.cpp
+benched run --config examples/sweep_cpu.yaml --binary /path/to/llama-server --model /path/to/model.gguf
+
+# vLLM
+benched run --config examples/sweep_gpu.yaml --venv /path/to/vllm-venv --model /path/to/model
 ```
 
 Each combination starts the server, runs the workload, records samples, then stops. Results go into `~/.local/share/benched/benched.db`. Live progress is printed as runs complete.
@@ -139,40 +145,21 @@ Open `http://127.0.0.1:8080` to browse runs, view TTFT/TPOT/throughput histogram
 
 | Command | Description |
 |---|---|
-| `benched build llama` | Build llama.cpp server from source |
-| `benched build vllm` | Build vLLM from source |
-| `benched run --config <file>` | Execute a sweep |
+| `benched run --config <file> --binary <path>` | Run a sweep with llama.cpp |
+| `benched run --config <file> --venv <path>` | Run a sweep with vLLM |
 | `benched list` | List stored runs |
 | `benched show <run_id>` | Show a single run |
 | `benched recommend --config <file>` | Rank top configurations |
 | `benched dashboard` | Launch the web UI |
 
-### Build options
-
-**llama.cpp:**
-- `--gpu {auto,cuda,vulkan,rocm,off}` — GPU backend (default: auto-detect)
-- `--ref <branch>` — git ref to clone (default: `main`)
-- `--binary <path>` — skip source build, use existing binary
-
-**vLLM:**
-- `--ref <branch>` — git ref to clone (default: `main`)
-- `--venv <path>` — skip source build, use existing virtualenv
-
 ### Run options
 
+- `--config <file>` — sweep configuration YAML (required)
+- `--binary <path>` — path to llama-server binary (required for llama.cpp)
+- `--venv <path>` — path to vLLM virtual environment (required for vLLM)
 - `--model <path>` — override model path from config
 - `--dry-run` — print configurations without running
 - `--continue-from <run_id>` — resume after a failure, skipping successful runs
-- `--gpu {auto,cuda,vulkan,rocm,off}` — GPU backend for llama.cpp builds
-
-## GPU backends
-
-| Flag | Backend | cmake flag | Detection |
-| `cuda` | CUDA | `-DGGML_CUDA=ON` | `nvcc` or `torch.cuda` |
-| `vulkan` | Vulkan | `-DGGML_VULKAN=ON` | `vulkaninfo` or `glslc` |
-| `rocm` | ROCm | `-DGGML_HIP=ON` | `hipconfig`, `hipcc`, or `/opt/rocm` |
-| `off` | CPU-only | none | — |
-| `auto` | first found | — | probes in order: cuda → vulkan → rocm → cpu |
 
 ## Config format
 
