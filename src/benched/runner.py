@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
-from benched.builders import LlamaCppBuilder, VllmBuilder
-from benched.builders.base import Builder, ServerPaths
+from benched.builders.base import ServerPaths
 from benched.client import Sample
 from benched.config import Config, matrix_combinations
 from benched.db import Database
@@ -21,19 +21,47 @@ class SweepError(Exception):
     """Raised when a sweep cannot proceed."""
 
 
-def _builder_for_config(cfg: Config, **kwargs: Any) -> Builder:
+_LLAMA_BIN = "llama-server"
+_VLLM_PY = "vllm.entrypoints.openai.api_server"
+
+
+def _resolve_paths(cfg: Config, **kwargs: Any) -> ServerPaths:
+    """Find (do not build) the server binary for the configured backend."""
+    ref = kwargs.get("ref") or ("master" if cfg.backend == "llama-cpp" else "main")
+    cache = Path.home() / ".cache" / "benched"
+
     if cfg.backend == "llama-cpp":
-        return LlamaCppBuilder(
-            ref=kwargs.get("ref", "main"),
-            gpu=kwargs.get("gpu", "auto"),
-            binary=kwargs.get("binary"),
-        )
+        binary = kwargs.get("binary")
+        if binary:
+            p = Path(binary)
+        else:
+            p = cache / "llama.cpp" / ref / "build" / "bin" / _LLAMA_BIN
+        if not p.exists():
+            raise SweepError(
+                f"llama-server not found at {p}\n"
+                f"  Run: benched build llama --ref {ref} --gpu auto|off|cuda|vulkan|rocm\n"
+                f"  Or:  benched run --binary /path/to/llama-server"
+            )
+        return ServerPaths(str(p), [])
+
     if cfg.backend == "vllm":
-        return VllmBuilder(
-            ref=kwargs.get("ref", "main"),
-            venv=kwargs.get("venv"),
-            wheel=kwargs.get("wheel", False),
-        )
+        venv = kwargs.get("venv")
+        if venv:
+            venv_path = Path(venv)
+        else:
+            venv_path = cache / "vllm" / ref / "venv"
+        if sys.platform == "win32":
+            py = venv_path / "Scripts" / "python.exe"
+        else:
+            py = venv_path / "bin" / "python"
+        if not py.exists():
+            raise SweepError(
+                f"vLLM venv not found at {py}\n"
+                f"  Run: benched build vllm --ref {ref} --wheel\n"
+                f"  Or:  benched run --venv /path/to/venv"
+            )
+        return ServerPaths(str(py), ["-m", _VLLM_PY])
+
     raise SweepError(f"unknown backend: {cfg.backend}")
 
 
@@ -137,8 +165,7 @@ async def run_sweep(
             print(f"  {i}/{len(combinations)} backend={cfg.backend} model={cfg.model} args={combo}")
         return
 
-    builder = _builder_for_config(cfg, **build_kwargs)
-    paths = await builder.ensure()
+    paths = _resolve_paths(cfg, **build_kwargs)
 
     # Optional resume: find runs that already succeeded and skip them.
     successful_hashes: set[str] = set()

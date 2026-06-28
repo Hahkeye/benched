@@ -130,7 +130,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     build_sub = build_parser.add_subparsers(dest="backend", required=True)
 
     llama_parser = build_sub.add_parser("llama", help="Build llama.cpp server")
-    llama_parser.add_argument("--ref", default="main")
+    llama_parser.add_argument("--ref", default="master")
     llama_parser.add_argument(
         "--gpu", choices=["auto", "cuda", "vulkan", "rocm", "off"], default="auto",
         help="GPU backend: auto (detect), cuda, vulkan, rocm, or off (CPU-only)",
@@ -152,7 +152,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_parser.add_argument("--config", required=True, help="Path to sweep config YAML")
     run_parser.add_argument("--model", help="Override model path")
     run_parser.add_argument("--dry-run", action="store_true", help="Print configurations without running")
-    run_parser.add_argument("--ref", default="main", help="Git ref for source builds")
+    run_parser.add_argument("--ref", help="Git ref for source builds (default: master for llama.cpp, main for vLLM)")
     run_parser.add_argument(
         "--gpu", choices=["auto", "cuda", "vulkan", "rocm", "off"], default="auto",
         help="GPU backend for llama.cpp builds: auto (detect), cuda, vulkan, rocm, off",

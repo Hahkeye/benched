@@ -14,6 +14,8 @@ from benched.builders.base import Builder, ServerPaths
 
 REPO_URL = "https://github.com/vllm-project/vllm.git"
 
+_WIN = sys.platform == "win32"
+
 
 async def _run_cmd(
     name: str,
@@ -52,7 +54,7 @@ async def _run_cmd_live(
     args: list[str],
     cwd: Path | None = None,
 ) -> asyncio.subprocess.Process:
-    """Run a command and stream its stdout/stderr to the terminal in real time."""
+    """Run a command, streaming stdout+stderr to the terminal in real time."""
     proc = await asyncio.create_subprocess_exec(
         name,
         *args,
@@ -71,16 +73,19 @@ async def _run_cmd_live(
         raise RuntimeError(f"command failed: {name} {' '.join(args)} (exit {proc.returncode})")
     return proc
 
+
 def _venv_python(venv: Path) -> Path:
-    if sys.platform == "win32":
-        return venv / "Scripts" / "python.exe"
-    return venv / "bin" / "python"
+    return venv / ("Scripts" if _WIN else "bin") / "python.exe" if _WIN else venv / "bin" / "python"
+
 
 def _venv_pip(venv: Path) -> Path:
-    """Return the path to pip inside a virtual environment."""
-    if sys.platform == "win32":
-        return venv / "Scripts" / "pip.exe"
-    return venv / "bin" / "pip"
+    return venv / ("Scripts" if _WIN else "bin") / "pip.exe" if _WIN else venv / "bin" / "pip"
+
+
+def _dist_info_records(venv: Path) -> list[str]:
+    return glob.glob(
+        str(venv / "lib" / "python*" / "site-packages" / "vllm-*.dist-info" / "RECORD")
+    )
 
 
 class VllmBuilder(Builder):
@@ -101,94 +106,74 @@ class VllmBuilder(Builder):
                 raise FileNotFoundError(f"provided venv python not found: {py}")
             return ServerPaths(str(py), ["-m", "vllm.entrypoints.openai.api_server"])
 
+        uv = shutil.which("uv")
         base = self.cache_dir() / "vllm"
-        venv = base / self.ref / "venv"
+        repo = base / self.ref
+        venv = repo / "venv"
+        py = _venv_python(venv)
 
-        # Wheel install: just pip/uv install vllm, no clone
+        # ── already installed? ─────────────────────────────────────────────
+        if py.exists() and _dist_info_records(venv):
+            if self.wheel:
+                print("[vllm] vllm wheel already installed, skipping")
+                return ServerPaths(str(py), ["-m", "vllm.entrypoints.openai.api_server"])
+            if (repo / ".git").exists():
+                commit_ts = await _git_commit_timestamp(repo)
+                last_install = max(os.stat(p).st_mtime for p in _dist_info_records(venv))
+                if last_install >= commit_ts:
+                    print("[vllm] vllm installation is up to date")
+                    return ServerPaths(str(py), ["-m", "vllm.entrypoints.openai.api_server"])
+
+        # ── wheel install (no clone) ───────────────────────────────────────
         if self.wheel:
-            print(f"[vllm] installing vllm wheel (ref={self.ref})")
-            if not _venv_python(venv).exists():
-                if shutil.which("uv"):
-                    print("[vllm] creating virtual environment with uv")
+            print("[vllm] installing vllm wheel")
+            if not py.exists():
+                if uv:
                     await _run_cmd("uv", ["venv", str(venv)])
                 else:
-                    print("[vllm] creating virtual environment")
                     await _run_cmd(sys.executable, ["-m", "venv", str(venv)])
-            py = _venv_python(venv)
-            if shutil.which("uv"):
-                await _run_cmd_live("uv", ["pip", "install", "--python", str(py), "vllm", "--torch-backend", "auto"], cwd=self.cache_dir())
+            if uv:
+                await _run_cmd_live(
+                    "uv", ["pip", "install", "--python", str(py), "vllm", "--torch-backend", "auto"],
+                    cwd=self.cache_dir(),
+                )
             else:
                 if not _venv_pip(venv).exists():
-                    await _run_cmd(str(py), ["-m", "ensurepip", "--upgrade"], cwd=self.cache_dir(), check=False)
+                    await _run_cmd(
+                        str(py), ["-m", "ensurepip", "--upgrade"],
+                        cwd=self.cache_dir(), check=False,
+                    )
                 await _run_cmd_live(str(py), ["-m", "pip", "install", "vllm"], cwd=self.cache_dir())
             return ServerPaths(str(py), ["-m", "vllm.entrypoints.openai.api_server"])
 
-        # Source build (clone + pip install -e .) ----------------------------
-        base = self.cache_dir() / "vllm"
-        repo = base / self.ref
-        venv = base / self.ref / "venv"
+        # ── source build (clone + pip install -e .) ────────────────────────
         repo.mkdir(parents=True, exist_ok=True)
-
         if not (repo / ".git").exists():
             print(f"[vllm] cloning {REPO_URL} @ {self.ref}")
-            await _run_cmd("git", ["clone", "--depth", "1", "--branch", self.ref, REPO_URL, str(repo)])
+            await _run_cmd(
+                "git", ["clone", "--depth", "1", "--branch", self.ref, REPO_URL, str(repo)]
+            )
         else:
             print(f"[vllm] pulling branch {self.ref}")
             await _run_cmd("git", ["-C", str(repo), "pull", "origin", self.ref])
 
-        py = _venv_python(venv)
         if not py.exists():
-            if shutil.which("uv"):
+            if uv:
                 print("[vllm] creating virtual environment with uv")
                 await _run_cmd("uv", ["venv", str(venv)])
             else:
                 print("[vllm] creating virtual environment")
                 await _run_cmd(sys.executable, ["-m", "venv", str(venv)])
 
-        # Install with uv if available, else pip -----------------------------
-        uv_available = shutil.which("uv") is not None
-        if uv_available:
-            # uv doesn't need pip in the venv; use uv directly for installs
-            need_install = True
-            commit_ts = await _git_commit_timestamp(repo)
-            # Check dist-info freshness (same check for both uv and pip)
-            dist_info_pattern = str(venv / "lib" / "python*" / "site-packages" / "vllm-*.dist-info" / "RECORD")
-            records = glob.glob(dist_info_pattern)
-            if records:
-                record_mtime = max(os.stat(p).st_mtime for p in records)
-                if record_mtime >= commit_ts:
-                    print("[vllm] vllm installation is up to date")
-                    need_install = False
-            if need_install:
-                print("[vllm] installing package with uv (this may take a while)")
-                await _run_cmd_live("uv", ["pip", "install", "--python", str(py), "-e", "."], cwd=repo)
+        if uv:
+            print("[vllm] installing package with uv (this may take a while)")
+            await _run_cmd_live(
+                "uv", ["pip", "install", "--python", str(py), "-e", "."], cwd=repo
+            )
         else:
-            # Fall back to pip -------------------------------------------------
+            print("[vllm] installing package into venv (this may take a while)")
             if not _venv_pip(venv).exists():
-                print("[vllm] pip not found in venv; running ensurepip")
-                try:
-                    await _run_cmd(str(py), ["-m", "ensurepip", "--upgrade"], cwd=repo, check=True)
-                except RuntimeError:
-                    print("[vllm] ensurepip failed; falling back to system pip bootstrap")
-                    await _run_cmd(
-                        sys.executable, ["-m", "pip", "install", "--target",
-                            str(py.parent.parent / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"),
-                            "pip",
-                        ],
-                        cwd=repo,
-                    )
-            need_install = True
-            commit_ts = await _git_commit_timestamp(repo)
-            dist_info_pattern = str(venv / "lib" / "python*" / "site-packages" / "vllm-*.dist-info" / "RECORD")
-            records = glob.glob(dist_info_pattern)
-            if records:
-                record_mtime = max(os.stat(p).st_mtime for p in records)
-                if record_mtime >= commit_ts:
-                    print("[vllm] vllm installation is up to date")
-                    need_install = False
-            if need_install:
-                print("[vllm] installing package into venv (this may take a while)")
-                await _run_cmd_live(str(py), ["-m", "pip", "install", "--upgrade", "pip"], cwd=repo)
-                await _run_cmd_live(str(py), ["-m", "pip", "install", "-e", "."], cwd=repo)
+                await _run_cmd(str(py), ["-m", "ensurepip", "--upgrade"], cwd=repo, check=False)
+            await _run_cmd_live(str(py), ["-m", "pip", "install", "-e", "."], cwd=repo)
 
         return ServerPaths(str(py), ["-m", "vllm.entrypoints.openai.api_server"])

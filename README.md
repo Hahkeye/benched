@@ -5,11 +5,11 @@ Auto-tuning harness for [llama.cpp](https://github.com/ggml-org/llama.cpp) and [
 ## Install
 
 ## Prerequisites
-
 - Python 3.10+
 - [uv](https://docs.astral.sh/uv/) (recommended) or `pip`
 - git
-
+- [cmake](https://cmake.org/) (required for building llama.cpp from source)
+- C++ compiler (`g++`, `clang++`, or MSVC) — needed for source builds
 ## Install
 
 ```bash
@@ -168,10 +168,9 @@ Open `http://127.0.0.1:8080` to browse runs, view TTFT/TPOT/throughput histogram
 ## GPU backends
 
 | Flag | Backend | cmake flag | Detection |
-|---|---|---|---|
-| `cuda` | CUDA | `-DLLAMA_CUDA=ON` | `nvcc` or `torch.cuda` |
-| `vulkan` | Vulkan | `-DLLAMA_VULKAN=ON` | `vulkaninfo` or `glslc` |
-| `rocm` | ROCm | `-DLLAMA_HIPBLAS=ON` | `hipcc` or `/opt/rocm/bin/hipcc` |
+| `cuda` | CUDA | `-DGGML_CUDA=ON` | `nvcc` or `torch.cuda` |
+| `vulkan` | Vulkan | `-DGGML_VULKAN=ON` | `vulkaninfo` or `glslc` |
+| `rocm` | ROCm | `-DGGML_HIP=ON` | `hipconfig`, `hipcc`, or `/opt/rocm` |
 | `off` | CPU-only | none | — |
 | `auto` | first found | — | probes in order: cuda → vulkan → rocm → cpu |
 
