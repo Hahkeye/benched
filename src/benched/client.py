@@ -54,6 +54,7 @@ async def chat_completion(
         "max_tokens": max_tokens,
         "stream": True,
         "model": model_name,
+        "stream_options": {"include_usage": True},
     }
 
     headers = {
@@ -63,8 +64,6 @@ async def chat_completion(
     }
     start = time.perf_counter()
     first_chunk_time: float | None = None
-    total_chunks = 0
-    content_chunks = 0
     usage: dict[str, Any] | None = None
     metadata: dict[str, Any] = {}
     error: str | None = None
@@ -76,7 +75,6 @@ async def chat_completion(
                     body = await resp.aread()
                     error = f"HTTP {resp.status_code}: {body.decode(errors='replace')[:500]}"
                     return Sample(error=error)
-
                 async for line in resp.aiter_lines():
                     if not line.startswith("data:"):
                         continue
@@ -89,28 +87,26 @@ async def chat_completion(
                         chunk = json.loads(data)
                     except json.JSONDecodeError:
                         continue
+
                     if first_chunk_time is None:
                         first_chunk_time = time.perf_counter()
 
-                    choice = chunk.get("choices", [{}])[0]
-                    total_chunks += 1
+                    choices = chunk.get("choices")
+                    # Usage-only chunk per OpenAI spec: {"choices":[], "usage":{...}}
+                    if not choices:
+                        chunk_usage = chunk.get("usage")
+                        if chunk_usage:
+                            usage = chunk_usage
+                        continue
 
-                    # DEBUG: print first two chunks with actual keys/values
-                    if total_chunks <= 3:
-                        import pprint
-                        print(f"  [client] chunk #{total_chunks}: {json.dumps(chunk)[:200]}")
+                    choice = choices[0]
 
-                    content = (
-                        choice.get("delta", {}).get("content")
-                        or choice.get("text")
-                    )
-                    if content:
-                        content_chunks += 1
-
+                    # Chunk-level usage on content chunks
                     chunk_usage = chunk.get("usage")
                     if chunk_usage:
                         usage = chunk_usage
-                    if chunk.get("choices") and not choice.get("delta"):
+                    # Choice-level usage on final finish chunk (some servers)
+                    if not choice.get("delta"):
                         if choice.get("finish_reason"):
                             final_usage = choice.get("usage")
                             if final_usage:
@@ -121,15 +117,13 @@ async def chat_completion(
     total_latency_ms = (time.perf_counter() - start) * 1000.0
     ttft_ms = (first_chunk_time - start) * 1000.0 if first_chunk_time else total_latency_ms
 
-    print(f"  [client] result: total_chunks={total_chunks}, content_chunks={content_chunks}, "
-          f"usage={usage}, error={error}")
 
     if usage:
         prompt_tokens = usage.get("prompt_tokens")
         completion_tokens = usage.get("completion_tokens")
     else:
         prompt_tokens = None
-        completion_tokens = content_chunks
+        completion_tokens = None
 
     if error:
         return Sample(error=error)

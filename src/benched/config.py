@@ -240,6 +240,40 @@ def matrix_combinations(matrix: list[list[list[str]]]) -> list[list[str]]:
     return [list(itertools.chain.from_iterable(combo)) for combo in combos]
 
 
+
+def default_sweep_matrix(backend: str) -> list[list[list[str]]]:
+    """Generate a comprehensive sweep matrix for the given backend.
+
+    Returns dimensions (each with multiple options) that explore the key
+    performance levers.  The cartesian product of all options yields
+    every configuration in the sweep.
+    """
+    if backend == "llama-cpp":
+        return [
+            # Threads
+            [["-t", "8", "-tb", "8"], ["-t", "16", "-tb", "16"]],
+            # Parallel slots
+            [["-np", "1"], ["-np", "4"]],
+            # KV cache data type
+            [[], ["-ctk", "q8_0", "-ctv", "q8_0"]],
+        ]
+    elif backend == "vllm":
+        return [
+            # GPU memory utilization
+            [["--gpu-memory-utilization", "0.85"],
+             ["--gpu-memory-utilization", "0.95"]],
+            # Max sequences
+            [["--max-num-seqs", "64"],
+             ["--max-num-seqs", "256"]],
+            # Eager execution
+            [["--enforce-eager"], []],
+            # Chunked prefill
+            [["--enable-chunked-prefill"], []],
+            # KV cache dtype
+            [[], ["--kv-cache-dtype", "fp8"]],
+        ]
+    raise ConfigError(f"no default sweep matrix for backend {backend!r}")
+
 def load_config(path: str | Path) -> Config:
     """Load and validate a configuration file (YAML or JSON)."""
     path = Path(path)

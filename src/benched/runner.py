@@ -109,12 +109,6 @@ async def run_single(
             sample_json=json.dumps(sample.metadata or {}),
         )
 
-    # Debug: peek at first sample to verify metrics
-    if samples:
-        s = samples[0]
-        print(f"  [debug] first sample: completion_tokens={s.completion_tokens}, "
-              f"ttft_ms={s.ttft_ms:.1f}, total_latency_ms={s.total_latency_ms:.1f}, "
-              f"throughput={s.throughput_tok_per_sec:.2f}, error={s.error}")
 
     summary = aggregate_samples(
         [
@@ -137,7 +131,7 @@ async def run_single(
 
 
 async def run_sweep(
-    config_path: str | Path,
+    config: str | Path | "Config",
     *,
     db: Database | None = None,
     dry_run: bool = False,
@@ -145,15 +139,13 @@ async def run_sweep(
     model_override: str | Path | None = None,
     **build_kwargs: Any,
 ) -> None:
-    """Load a config and execute (or dry-run) the full sweep."""
-    from benched.config import load_config
+    """Execute (or dry-run) a sweep from a Config object or config file path."""
+    from benched.config import Config as _Config, load_config, matrix_combinations
 
-    cfg = load_config(config_path)
+    cfg: _Config = load_config(config) if isinstance(config, (str, Path)) else config
     if model_override:
         cfg.model = Path(model_override)
-        if not cfg.model.exists():
-            raise SweepError(f"override model path does not exist: {cfg.model}")
-    else:
+    elif not dry_run:
         cfg.check_model_exists()
 
     db = db or Database()

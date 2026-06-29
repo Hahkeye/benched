@@ -261,3 +261,7 @@ class Database:
             conn.execute("DELETE FROM samples")
             conn.execute("DELETE FROM runs")
             conn.commit()
+
+    def drop_db(self) -> None:
+        """Delete the entire database file. All data is lost."""
+        self.path.unlink(missing_ok=True)
