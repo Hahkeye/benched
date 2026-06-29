@@ -250,8 +250,6 @@ def default_sweep_matrix(backend: str) -> list[list[list[str]]]:
     """
     if backend == "llama-cpp":
         return [
-            # Threads
-            [["-t", "8", "-tb", "8"], ["-t", "16", "-tb", "16"]],
             # Parallel slots
             [["-np", "1"], ["-np", "4"]],
             # KV cache data type

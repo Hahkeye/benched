@@ -61,6 +61,7 @@ Create a YAML config (see `examples/`). Examples:
 ```yaml
 # examples/sweep_cpu.yaml
 backend: llama-cpp
+binary: /path/to/llama-server
 model: /path/to/TinyLlama-1.1B-Chat-v1.0.Q4_K_M.gguf
 server:
   matrix:
@@ -82,6 +83,7 @@ objective: maximize throughput_tok_per_sec
 ```yaml
 # examples/sweep_gpu.yaml
 backend: vllm
+venv: /path/to/vllm-venv
 model: /path/to/model
 server:
   matrix:
@@ -173,6 +175,37 @@ Open `http://127.0.0.1:8080` to browse runs, view TTFT/TPOT/throughput histogram
 - `--venv <path>` — path to vLLM virtual environment
 - `--dry-run` — print configurations without running
 - `--continue-from <run_id>` — resume after a failure, skipping successful runs
+
+### Auto-sweep parameters (llama-cpp)
+
+When running with `--backend llama-cpp --model <path>` (no config file), the
+default sweep explores these dimensions (GPU-focused, 4 combos):
+
+| Dimension | Options |
+|---|---|
+| Parallel slots | `-np 1`, `-np 4` |
+| KV cache data type | f16 (default), `-ctk q8_0 -ctv q8_0` |
+| MTP speculative decoding | off (add `--mtp` for `--spec-type draft-mtp --spec-draft-n-max 4`) |
+
+All other performance-relevant args use optimal GPU defaults
+(`-ngl 99`, `-c 8192`, `-b 2048`, `-ub 512`, `-fa 1`, mmap on,
+`-t 8 -tb 8`).
+
+### Auto-sweep parameters (vllm)
+
+| Dimension | Options |
+|---|---|
+| GPU memory utilization | `0.85`, `0.95` |
+| Max sequences | `64`, `256` |
+| Enforce eager | on / off |
+| Chunked prefill | on / off |
+| KV cache dtype | auto, `fp8` |
+
+### Customising the config file
+
+For full control, write a YAML config with any llama.cpp or vLLM CLI flags in
+`server.matrix`.  See [`examples/`](examples/) and the matrix format below.
+
 ## Config format
 
 See [`examples/`](examples/) for complete examples. The configuration file is YAML with these top-level keys:
