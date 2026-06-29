@@ -100,23 +100,28 @@ workload:
 objective: maximize throughput_tok_per_sec
 ```
 
-### 3. Dry-run first
+### 3. Auto-sweep (no config file)
+
+Skip the config entirely — just point at a model and go:
 
 ```bash
-benched run --config examples/sweep_cpu.yaml --binary /path/to/llama-server --dry-run
+# llama.cpp — 8 high-impact combos
+benched run --backend llama-cpp --binary /path/to/llama-server --model /path/to/model.gguf --dry-run
+
+# vLLM — 32 combos
+benched run --backend vllm --venv /path/to/vllm-venv --model /path/to/model --dry-run
+
+# With MTP speculative decoding (model must support it)
+benched run --backend llama-cpp --model /path/to/model.gguf --mtp --dry-run
 ```
 
-Prints every cartesian combination without starting a server.
+Omit `--dry-run` to actually run the sweep.  Adjust workload with `--prompt-len`,
+`--gen-len`, `--concurrency`, `--total-requests`.
 
-### 4. Run the sweep
+### 4. Config-file sweep
 
-```bash
-# llama.cpp
-benched run --config examples/sweep_cpu.yaml --binary /path/to/llama-server --model /path/to/model.gguf
+Create a YAML config (see `examples/`) for full control:
 
-# vLLM
-benched run --config examples/sweep_gpu.yaml --venv /path/to/vllm-venv --model /path/to/model
-```
 
 Each combination starts the server, runs the workload, records samples, then stops. Results go into `~/.local/share/benched/benched.db`. Live progress is printed as runs complete.
 
@@ -145,22 +150,29 @@ Open `http://127.0.0.1:8080` to browse runs, view TTFT/TPOT/throughput histogram
 
 | Command | Description |
 |---|---|
-| `benched run --config <file> --binary <path>` | Run a sweep with llama.cpp |
-| `benched run --config <file> --venv <path>` | Run a sweep with vLLM |
+| `benched run --config <file>` | Run a sweep from a config file |
+| `benched run --backend <backend> --model <path>` | Auto-sweep (no config file) |
+| `benched run --backend llama-cpp --model <path> --mtp` | Auto-sweep with MTP speculative decoding |
 | `benched list` | List stored runs |
 | `benched show <run_id>` | Show a single run |
 | `benched recommend --config <file>` | Rank top configurations |
+| `benched reset` | Delete the entire database |
 | `benched dashboard` | Launch the web UI |
 
 ### Run options
 
-- `--config <file>` — sweep configuration YAML (required)
-- `--binary <path>` — path to llama-server binary (required for llama.cpp)
-- `--venv <path>` — path to vLLM virtual environment (required for vLLM)
-- `--model <path>` — override model path from config
+- `--config <file>` — sweep configuration YAML
+- `--backend <backend>` — backend for auto-sweep (`llama-cpp` or `vllm`)
+- `--model <path>` — model path (for auto-sweep or override)
+- `--mtp` — enable MTP speculative decoding sweep
+- `--prompt-len <n>` — synthetic prompt tokens (auto-sweep, default 512)
+- `--gen-len <n>` — synthetic generation tokens (auto-sweep, default 256)
+- `--concurrency <n>` — concurrent requests (auto-sweep, default 4)
+- `--total-requests <n>` — total requests per combo (auto-sweep, default 16)
+- `--binary <path>` — path to llama-server binary
+- `--venv <path>` — path to vLLM virtual environment
 - `--dry-run` — print configurations without running
 - `--continue-from <run_id>` — resume after a failure, skipping successful runs
-
 ## Config format
 
 See [`examples/`](examples/) for complete examples. The configuration file is YAML with these top-level keys:
